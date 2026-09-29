@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Calendar, Users, Image as ImageIcon, Trophy, 
   BookOpen, MessageSquare, Settings, LogOut, Plus, Trash2, Edit3, 
   CheckCircle2, Download, Search, ExternalLink, RefreshCw, BarChart3, TrendingUp,
-  UserCheck, FileText, X, Phone, Mail, GraduationCap
+  UserCheck, FileText, X, Phone, Mail, GraduationCap, Upload, Camera, Sparkles,
+  Link2, Loader2, ImagePlus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
@@ -37,6 +38,8 @@ export default function AdminDashboard() {
   const [appDeptFilter, setAppDeptFilter] = useState('All');
   const [appStatusFilter, setAppStatusFilter] = useState('All');
   const [selectedApp, setSelectedApp] = useState(null);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
+
 
   // Event form
   const [eventForm, setEventForm] = useState({
@@ -158,6 +161,37 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     logout();
     navigate('/admin/login');
+  };
+
+  // Event Poster Upload Handler
+  const handlePosterFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file (JPG, PNG, WEBP, GIF)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size exceeds 5MB limit');
+      return;
+    }
+
+    setUploadingPoster(true);
+    try {
+      const res = await api.uploadImage(file);
+      if (res.success && res.url) {
+        setEventForm(prev => ({ ...prev, poster_url: res.url }));
+        showToast('Event poster image uploaded!');
+      } else {
+        showToast(res.message || 'Failed to upload image');
+      }
+    } catch {
+      showToast('Error uploading image');
+    } finally {
+      setUploadingPoster(false);
+    }
   };
 
   // Event Actions
@@ -754,15 +788,18 @@ export default function AdminDashboard() {
         {/* ==================================================== */}
         {activeTab === 'events' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-500 font-semibold">Total: {events.length} events</span>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900">Manage Campus Events</h3>
+                <span className="text-xs text-slate-500">Total: {events.length} active events on portal</span>
+              </div>
               <button
                 onClick={() => {
                   setEventForm({
                     title: '',
                     slug: '',
                     category: 'Workshop',
-                    poster_url: '',
+                    poster_url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80',
                     event_date: new Date().toISOString().slice(0, 10),
                     event_time: '10:00 AM - 04:00 PM',
                     venue: 'DAV College Jalandhar',
@@ -778,20 +815,22 @@ export default function AdminDashboard() {
                   });
                   setModalType('event');
                 }}
-                className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
               >
                 <Plus className="w-4 h-4" />
-                <span>Create Event</span>
+                <span>Create New Event</span>
               </button>
             </div>
 
-            <div className="ui-card bg-white border border-slate-200 overflow-hidden">
+            <div className="ui-card bg-white border border-slate-200 overflow-hidden shadow-sm">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-400 uppercase font-bold border-b border-slate-200">
                   <tr>
-                    <th className="p-4">Title</th>
+                    <th className="p-4">Poster</th>
+                    <th className="p-4">Event Details</th>
                     <th className="p-4">Category</th>
-                    <th className="p-4">Date</th>
+                    <th className="p-4">Date & Time</th>
+                    <th className="p-4">Seats / Mode</th>
                     <th className="p-4">Status</th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
@@ -799,27 +838,59 @@ export default function AdminDashboard() {
                 <tbody className="divide-y divide-slate-100">
                   {events.map((ev) => (
                     <tr key={ev.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold text-slate-900">{ev.title}</td>
-                      <td className="p-4 text-slate-500">{ev.category}</td>
-                      <td className="p-4 font-mono text-slate-600">{ev.event_date}</td>
+                      <td className="p-4 w-20">
+                        <div className="w-16 h-12 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-xs flex-shrink-0">
+                          <img
+                            src={ev.poster_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80'}
+                            alt={ev.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80';
+                            }}
+                          />
+                        </div>
+                      </td>
                       <td className="p-4">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
+                        <div className="font-bold text-slate-900 max-w-xs">{ev.title}</div>
+                        <div className="text-[11px] text-slate-400 truncate max-w-xs">{ev.venue}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-100">
+                          {ev.category}
+                        </span>
+                      </td>
+                      <td className="p-4 font-mono text-slate-600">
+                        <div>{ev.event_date}</div>
+                        <div className="text-[10px] text-slate-400">{ev.event_time || 'Full Day'}</div>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-semibold text-slate-800">{ev.registrations_count || 0} / {ev.max_seats || '∞'}</div>
+                        <div className="text-[10px] text-slate-400 capitalize">{ev.registration_mode || 'Internal'}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                          ev.status === 'upcoming' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          ev.status === 'ongoing' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          'bg-slate-100 text-slate-600'
+                        }`}>
                           {ev.status}
                         </span>
                       </td>
-                      <td className="p-4 text-right space-x-2">
+                      <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
                         <button
                           onClick={() => {
                             setEventForm({ ...ev });
                             setModalType('event');
                           }}
                           className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                          title="Edit Event & Image"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteEvent(ev.id)}
                           className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
+                          title="Delete Event"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1005,63 +1076,243 @@ export default function AdminDashboard() {
       {/* Modal Dialogs */}
       {modalType === 'event' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl border border-slate-200">
-            <h3 className="font-display font-bold text-lg text-slate-900">
-              {eventForm.id ? 'Edit Event' : 'Create Event'}
-            </h3>
-            <form onSubmit={handleSaveEvent} className="space-y-3 text-xs">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <label className="text-slate-500 font-bold mb-1 block">Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={eventForm.title}
-                  onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
-                />
+                <h3 className="font-display font-bold text-lg text-slate-900">
+                  {eventForm.id ? 'Edit Event' : 'Create New Event'}
+                </h3>
+                <p className="text-xs text-slate-400">Configure event details, dates, and banner poster</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalType(null)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEvent} className="space-y-4 text-xs">
+              
+              {/* ==================================================== */}
+              {/* EVENT POSTER / IMAGE UPLOAD SECTION */}
+              {/* ==================================================== */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-blue-600" />
+                    <span>Event Poster Image</span>
+                  </label>
+                  {eventForm.poster_url && (
+                    <button
+                      type="button"
+                      onClick={() => setEventForm({ ...eventForm, poster_url: '' })}
+                      className="text-[11px] font-bold text-rose-600 hover:underline"
+                    >
+                      Clear Image
+                    </button>
+                  )}
+                </div>
+
+                {/* Poster Live Preview */}
+                {eventForm.poster_url ? (
+                  <div className="relative h-44 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner group">
+                    <img
+                      src={eventForm.poster_url}
+                      alt="Poster Preview"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/90 text-slate-900 backdrop-blur-xs">
+                        Poster Preview
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-blue-600 text-white shadow-xs">
+                        {eventForm.category || 'Workshop'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-32 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-4 bg-white/50 text-slate-400 gap-1.5">
+                    <ImagePlus className="w-8 h-8 text-slate-300" />
+                    <span className="text-xs font-semibold">No poster image selected</span>
+                    <span className="text-[10px] text-slate-400">Upload an image file or paste an image URL below</span>
+                  </div>
+                )}
+
+                {/* Upload Buttons & Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  
+                  {/* File Upload Input */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-1 block">Upload from Device:</label>
+                    <label className={`w-full py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-2xs ${uploadingPoster ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                      {uploadingPoster ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <span>Uploading Poster...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 text-blue-600" />
+                          <span>Choose Image File (JPG/PNG)</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        disabled={uploadingPoster}
+                        onChange={handlePosterFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Direct Image URL input */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-1 block">Or Direct Image URL:</label>
+                    <div className="relative">
+                      <Link2 className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                      <input
+                        type="url"
+                        placeholder="https://images.unsplash.com/..."
+                        value={eventForm.poster_url}
+                        onChange={(e) => setEventForm({ ...eventForm, poster_url: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Preset Imagery */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    Quick Preset Cover Templates:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: '💡 Tech Workshop', url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80' },
+                      { label: '🚀 Hackathon / Ideathon', url: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=800&q=80' },
+                      { label: '🎤 Keynote Summit', url: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=800&q=80' },
+                      { label: '🏆 Pitch Deck', url: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=800&q=80' },
+                      { label: '🤖 AI Bootcamp', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80' }
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setEventForm({ ...eventForm, poster_url: preset.url })}
+                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 text-[10px] font-semibold text-slate-600 transition-colors shadow-2xs"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* ==================================================== */}
+              {/* CORE EVENT FIELDS */}
+              {/* ==================================================== */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold mb-1 block">Event Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Tech Ideathon 2026"
+                    value={eventForm.title}
+                    onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
+                  />
+                </div>
+
                 <div>
-                  <label className="text-slate-500 font-bold mb-1 block">Category</label>
+                  <label className="text-slate-600 font-bold mb-1 block">Category *</label>
                   <select
                     value={eventForm.category}
                     onChange={(e) => setEventForm({ ...eventForm, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800"
                   >
                     <option value="Workshop">Workshop</option>
                     <option value="Competition">Competition</option>
                     <option value="Seminar">Seminar</option>
                     <option value="Talk">Talk</option>
+                    <option value="Summit">Summit</option>
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-slate-500 font-bold mb-1 block">Date</label>
+                  <label className="text-slate-600 font-bold mb-1 block">Event Date *</label>
                   <input
                     type="date"
                     required
                     value={eventForm.event_date}
                     onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Time / Schedule</label>
+                  <input
+                    type="text"
+                    placeholder="10:00 AM - 04:00 PM"
+                    value={eventForm.event_time || ''}
+                    onChange={(e) => setEventForm({ ...eventForm, event_time: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Event Status</label>
+                  <select
+                    value={eventForm.status}
+                    onChange={(e) => setEventForm({ ...eventForm, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                  >
+                    <option value="upcoming">Upcoming</option>
+                    <option value="ongoing">Ongoing</option>
+                    <option value="past">Past / Completed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Venue / Campus Location</label>
+                  <input
+                    type="text"
+                    placeholder="Auditorium, DAV College Jalandhar"
+                    value={eventForm.venue}
+                    onChange={(e) => setEventForm({ ...eventForm, venue: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Max Capacity (Seats)</label>
+                  <input
+                    type="number"
+                    placeholder="100"
+                    value={eventForm.max_seats || 100}
+                    onChange={(e) => setEventForm({ ...eventForm, max_seats: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-500 font-bold mb-1 block">Venue</label>
-                <input
-                  type="text"
-                  value={eventForm.venue}
-                  onChange={(e) => setEventForm({ ...eventForm, venue: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-500 font-bold mb-1 block">Description</label>
+                <label className="text-slate-600 font-bold mb-1 block">Short Description *</label>
                 <textarea
                   rows={2}
+                  required
+                  placeholder="Concise overview for cards and portal listings..."
                   value={eventForm.short_description}
                   onChange={(e) => setEventForm({ ...eventForm, short_description: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
@@ -1072,15 +1323,16 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={() => setModalType(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-primary-600 text-white font-bold"
+                  disabled={uploadingPoster}
+                  className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm flex items-center gap-1.5"
                 >
-                  Save Event
+                  <span>{eventForm.id ? 'Update Event' : 'Publish Event'}</span>
                 </button>
               </div>
             </form>

@@ -530,6 +530,45 @@ export const api = {
     return res;
   },
 
+  // Media & Image Upload
+  async uploadImage(file) {
+    const token = localStorage.getItem('ecell_admin_token');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/upload.php`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        const fullUrl = data.data.url.startsWith('http')
+          ? data.data.url
+          : `${API_BASE}${data.data.url.startsWith('/') ? '' : '/'}${data.data.url}`;
+        return { success: true, url: fullUrl, filename: data.data.filename };
+      }
+      // Fallback to local DataURL preview
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ success: true, url: reader.result, isPreview: true });
+        reader.onerror = () => resolve({ success: false, message: 'Failed to read file' });
+        reader.readAsDataURL(file);
+      });
+    } catch {
+      // Offline fallback
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ success: true, url: reader.result, isPreview: true });
+        reader.onerror = () => resolve({ success: false, message: 'Failed to upload image' });
+        reader.readAsDataURL(file);
+      });
+    }
+  },
+
   logout() {
     localStorage.removeItem('ecell_admin_token');
     localStorage.removeItem('ecell_admin_user');
@@ -544,3 +583,4 @@ export const api = {
     }
   }
 };
+
