@@ -13,10 +13,8 @@ import EventDetails from './pages/EventDetails';
 import Register from './pages/Register';
 import Join from './pages/Join';
 import Team from './pages/Team';
-import OurWork from './pages/OurWork';
 import Gallery from './pages/Gallery';
 import Achievements from './pages/Achievements';
-import Resources from './pages/Resources';
 import Contact from './pages/Contact';
 import NotFound from './pages/NotFound';
 
@@ -60,10 +58,8 @@ export default function App() {
             <Route path="/join" element={<Join />} />
             <Route path="/register" element={<Register />} />
             <Route path="/team" element={<Team />} />
-            <Route path="/our-work" element={<OurWork />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/achievements" element={<Achievements />} />
-            <Route path="/resources" element={<Resources />} />
             <Route path="/contact" element={<Contact />} />
 
             {/* Admin Routes */}
