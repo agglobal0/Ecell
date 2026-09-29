@@ -317,11 +317,31 @@ export default function AdminDashboard() {
     }
   };
 
-  // Gallery Actions
+  // Gallery Actions & Image Upload
+  const handleGalleryFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file');
+      return;
+    }
+
+    try {
+      const res = await api.uploadImage(file);
+      if (res.success && res.url) {
+        setGalleryForm(prev => ({ ...prev, image_url: res.url }));
+        showToast('Gallery image uploaded!');
+      }
+    } catch {
+      showToast('Upload error');
+    }
+  };
+
   const handleSaveGallery = async (e) => {
     e.preventDefault();
     await api.saveGalleryItem(galleryForm);
-    showToast('Photo added');
+    showToast('Photo added to gallery');
     setModalType(null);
     loadAllData();
   };
@@ -331,6 +351,21 @@ export default function AdminDashboard() {
       await api.deleteGalleryItem(id);
       showToast('Photo removed');
       loadAllData();
+    }
+  };
+
+  // Team Photo Upload
+  const handleTeamFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await api.uploadImage(file);
+      if (res.success && res.url) {
+        setTeamForm(prev => ({ ...prev, photo_url: res.url }));
+        showToast('Team member photo uploaded!');
+      }
+    } catch {
+      showToast('Upload error');
     }
   };
 
@@ -379,6 +414,38 @@ export default function AdminDashboard() {
     if (window.confirm('Delete this achievement record?')) {
       await api.deleteAchievement(id);
       showToast('Achievement record deleted');
+      loadAllData();
+    }
+  };
+
+  // Resource Actions
+  const handleSaveResource = async (e) => {
+    e.preventDefault();
+    await api.saveResource(resourceForm);
+    showToast('Resource published');
+    setModalType(null);
+    loadAllData();
+  };
+
+  const handleDeleteResource = async (id) => {
+    if (window.confirm('Delete this resource?')) {
+      await api.deleteResource(id);
+      showToast('Resource removed');
+      loadAllData();
+    }
+  };
+
+  // Message Actions
+  const handleToggleMessageRead = async (id, currentStatus) => {
+    await api.updateMessageStatus(id, { is_read: currentStatus ? 0 : 1 });
+    showToast('Message status updated');
+    loadAllData();
+  };
+
+  const handleDeleteMessage = async (id) => {
+    if (window.confirm('Delete this inquiry message?')) {
+      await api.deleteMessage(id);
+      showToast('Message deleted');
       loadAllData();
     }
   };
@@ -1218,6 +1285,233 @@ export default function AdminDashboard() {
         )}
 
         {/* ==================================================== */}
+        {/* TAB: GALLERY */}
+        {/* ==================================================== */}
+        {activeTab === 'gallery' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900">Campus & Event Gallery</h3>
+                <span className="text-xs text-slate-500">Total: {gallery.length} photos</span>
+              </div>
+              <button
+                onClick={() => {
+                  setGalleryForm({
+                    title: '',
+                    category: 'Events',
+                    image_url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1000&q=80',
+                    event_name: 'E-Cell DAV Event',
+                    caption: '',
+                    is_featured: 1
+                  });
+                  setModalType('gallery');
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Upload New Photo</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {gallery.map((g) => (
+                <div key={g.id} className="ui-card rounded-2xl overflow-hidden bg-white border border-slate-200 group flex flex-col justify-between shadow-2xs">
+                  <div className="relative h-40 overflow-hidden bg-slate-100">
+                    <img
+                      src={g.image_url}
+                      alt={g.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80';
+                      }}
+                    />
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-slate-900/80 text-white backdrop-blur-xs">
+                      {g.category || 'Events'}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs leading-snug line-clamp-1">{g.title}</h4>
+                      {g.caption && <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{g.caption}</p>}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <span className="text-[10px] text-slate-400 truncate">{g.event_name || 'Campus'}</span>
+                      <button
+                        onClick={() => handleDeleteGallery(g.id)}
+                        className="p-1 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                        title="Delete Photo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* TAB: RESOURCES */}
+        {/* ==================================================== */}
+        {activeTab === 'resources' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900">Founder Knowledge Base & Resources</h3>
+                <span className="text-xs text-slate-500">Total: {resources.length} guides, templates & toolkits</span>
+              </div>
+              <button
+                onClick={() => {
+                  setResourceForm({
+                    title: '',
+                    category: 'Startup',
+                    resource_type: 'PDF',
+                    file_url: '#',
+                    link_url: '',
+                    description: '',
+                    tags: ''
+                  });
+                  setModalType('resource');
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Resource</span>
+              </button>
+            </div>
+
+            <div className="ui-card bg-white border border-slate-200 overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-400 uppercase font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="p-4">Resource Title</th>
+                    <th className="p-4">Type</th>
+                    <th className="p-4">Category</th>
+                    <th className="p-4">Link / File</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {resources.map((res) => (
+                    <tr key={res.id} className="hover:bg-slate-50">
+                      <td className="p-4 max-w-sm">
+                        <div className="font-bold text-slate-900">{res.title}</div>
+                        <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{res.description}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-100">
+                          {res.resource_type || 'PDF'}
+                        </span>
+                      </td>
+                      <td className="p-4 font-semibold text-slate-700">{res.category}</td>
+                      <td className="p-4">
+                        {res.link_url || res.file_url ? (
+                          <a
+                            href={res.link_url || res.file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            <span>Open URL</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 italic">No link</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteResource(res.id)}
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* TAB: MESSAGES / INQUIRIES */}
+        {/* ==================================================== */}
+        {activeTab === 'messages' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900">Contact & Mentorship Inquiries</h3>
+                <span className="text-xs text-slate-500">Total: {messages.length} messages received from website</span>
+              </div>
+            </div>
+
+            <div className="ui-card bg-white border border-slate-200 overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-400 uppercase font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="p-4">Sender</th>
+                    <th className="p-4">Subject & Message</th>
+                    <th className="p-4">Received</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {messages.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-400">
+                        No contact inquiries yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    messages.map((msg) => (
+                      <tr key={msg.id} className={`hover:bg-slate-50 ${!msg.is_read ? 'bg-blue-50/40 font-semibold' : ''}`}>
+                        <td className="p-4">
+                          <div className="font-bold text-slate-900">{msg.name}</div>
+                          <div className="text-[11px] text-slate-500">{msg.email} • {msg.phone}</div>
+                        </td>
+                        <td className="p-4 max-w-sm">
+                          <div className="font-bold text-slate-800">{msg.subject || 'General Inquiry'}</div>
+                          <div className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{msg.message}</div>
+                        </td>
+                        <td className="p-4 font-mono text-slate-500 whitespace-nowrap">
+                          {msg.created_at ? new Date(msg.created_at).toLocaleDateString() : 'Recent'}
+                        </td>
+                        <td className="p-4">
+                          <button
+                            onClick={() => handleToggleMessageRead(msg.id, msg.is_read)}
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              msg.is_read
+                                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            }`}
+                          >
+                            {msg.is_read ? 'Read' : 'Mark Unread'}
+                          </button>
+                        </td>
+                        <td className="p-4 text-right">
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
         {/* TAB: SETTINGS & STATS */}
         {/* ==================================================== */}
         {activeTab === 'settings' && (
@@ -1748,25 +2042,27 @@ export default function AdminDashboard() {
 
       {modalType === 'team' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
             <h3 className="font-display font-bold text-lg text-slate-900">Add Team Member</h3>
             <form onSubmit={handleSaveTeam} className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-500 font-bold mb-1 block">Name *</label>
+                <label className="text-slate-500 font-bold mb-1 block">Full Name *</label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Dr. Rajesh Sharma"
                   value={teamForm.name}
                   onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
                 />
               </div>
 
               <div>
-                <label className="text-slate-500 font-bold mb-1 block">Designation *</label>
+                <label className="text-slate-500 font-bold mb-1 block">Designation / Role *</label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. President / Faculty Coordinator"
                   value={teamForm.designation}
                   onChange={(e) => setTeamForm({ ...teamForm, designation: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
@@ -1774,16 +2070,35 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="text-slate-500 font-bold mb-1 block">Department</label>
+                <label className="text-slate-500 font-bold mb-1 block">Department / Major</label>
                 <input
                   type="text"
+                  placeholder="e.g. B.Com Professional"
                   value={teamForm.department}
                   onChange={(e) => setTeamForm({ ...teamForm, department: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3">
+              <div>
+                <label className="text-slate-500 font-bold mb-1 block">Photo URL / Upload</label>
+                <div className="space-y-2">
+                  <input
+                    type="url"
+                    placeholder="https://images.unsplash.com/..."
+                    value={teamForm.photo_url}
+                    onChange={(e) => setTeamForm({ ...teamForm, photo_url: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                  <label className="w-full py-2 px-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold flex items-center justify-center gap-1.5 cursor-pointer text-xs">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Photo from Device</span>
+                    <input type="file" accept="image/*" onChange={handleTeamFileUpload} className="hidden" />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setModalType(null)}
@@ -1793,9 +2108,201 @@ export default function AdminDashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-primary-600 text-white font-bold"
+                  className="px-6 py-2 rounded-xl bg-blue-600 text-white font-bold"
                 >
                   Save Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Gallery Photo Upload Modal */}
+      {modalType === 'gallery' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
+            <h3 className="font-display font-bold text-lg text-slate-900">Upload Gallery Photo</h3>
+            <form onSubmit={handleSaveGallery} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-500 font-bold mb-1 block">Photo Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ideathon 2026 Prototyping Arena"
+                  value={galleryForm.title}
+                  onChange={(e) => setGalleryForm({ ...galleryForm, title: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-500 font-bold mb-1 block">Category</label>
+                  <select
+                    value={galleryForm.category}
+                    onChange={(e) => setGalleryForm({ ...galleryForm, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  >
+                    <option value="Events">Events</option>
+                    <option value="Competitions">Competitions</option>
+                    <option value="Workshops">Workshops</option>
+                    <option value="Team">Team</option>
+                    <option value="Campus">Campus</option>
+                    <option value="Behind The Scenes">Behind The Scenes</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-500 font-bold mb-1 block">Event Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. E-Summit DAV"
+                    value={galleryForm.event_name}
+                    onChange={(e) => setGalleryForm({ ...galleryForm, event_name: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-500 font-bold mb-1 block">Image Source *</label>
+                <div className="space-y-2">
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://images.unsplash.com/..."
+                    value={galleryForm.image_url}
+                    onChange={(e) => setGalleryForm({ ...galleryForm, image_url: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                  <label className="w-full py-2 px-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold flex items-center justify-center gap-1.5 cursor-pointer text-xs">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Image from Device</span>
+                    <input type="file" accept="image/*" onChange={handleGalleryFileUpload} className="hidden" />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-500 font-bold mb-1 block">Caption</label>
+                <textarea
+                  rows={2}
+                  placeholder="Short description of the photo..."
+                  value={galleryForm.caption}
+                  onChange={(e) => setGalleryForm({ ...galleryForm, caption: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setModalType(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 rounded-xl bg-blue-600 text-white font-bold"
+                >
+                  Save Photo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Resource Modal */}
+      {modalType === 'resource' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
+            <h3 className="font-display font-bold text-lg text-slate-900">Add Founder Resource</h3>
+            <form onSubmit={handleSaveResource} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-500 font-bold mb-1 block">Resource Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Startup Idea Validation Canvas"
+                  value={resourceForm.title}
+                  onChange={(e) => setResourceForm({ ...resourceForm, title: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-500 font-bold mb-1 block">Resource Type</label>
+                  <select
+                    value={resourceForm.resource_type}
+                    onChange={(e) => setResourceForm({ ...resourceForm, resource_type: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                  >
+                    <option value="PDF">PDF Guide</option>
+                    <option value="Template">Template</option>
+                    <option value="Link">External Link</option>
+                    <option value="Video">Video Tutorial</option>
+                    <option value="Article">Article</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-500 font-bold mb-1 block">Category</label>
+                  <select
+                    value={resourceForm.category}
+                    onChange={(e) => setResourceForm({ ...resourceForm, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
+                  >
+                    <option value="Startup">Startup</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Pitching">Pitching</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Tech">Tech</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-500 font-bold mb-1 block">Link URL / Download Link *</label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://..."
+                  value={resourceForm.link_url}
+                  onChange={(e) => setResourceForm({ ...resourceForm, link_url: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-500 font-bold mb-1 block">Description *</label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Brief summary of the toolkit/resource..."
+                  value={resourceForm.description}
+                  onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setModalType(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 rounded-xl bg-blue-600 text-white font-bold"
+                >
+                  Save Resource
                 </button>
               </div>
             </form>
