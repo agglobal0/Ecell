@@ -277,12 +277,19 @@ export const api = {
   },
 
   async saveAchievement(data) {
-    const res = await request('/api/achievements.php', { method: 'POST', body: JSON.stringify(data) });
+    const isEdit = !!data.id;
+    const url = isEdit ? `/api/achievements.php?id=${data.id}` : '/api/achievements.php';
+    const res = await request(url, { method: 'POST', body: JSON.stringify(data) });
     if (!res.success) {
       const list = getLocalData('achievements', defaultAchievements);
-      list.unshift({ ...data, id: Date.now() });
-      setLocalData('achievements', list);
-      return { success: true, message: 'Achievement added' };
+      if (isEdit) {
+        const updated = list.map(item => item.id === data.id ? { ...item, ...data } : item);
+        setLocalData('achievements', updated);
+      } else {
+        list.unshift({ ...data, id: Date.now() });
+        setLocalData('achievements', list);
+      }
+      return { success: true, message: isEdit ? 'Achievement updated successfully' : 'Achievement added successfully' };
     }
     return res;
   },

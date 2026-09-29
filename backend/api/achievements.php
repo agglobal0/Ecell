@@ -19,9 +19,10 @@ if ($method === 'GET') {
     }
 }
 
-if ($method === 'POST') {
+if ($method === 'POST' || $method === 'PUT') {
     AuthToken::requireAdmin();
     $input = getJsonInput();
+    $id = intval($_GET['id'] ?? $input['id'] ?? 0);
 
     $title = trim($input['title'] ?? '');
     $description = trim($input['description'] ?? '');
@@ -36,21 +37,39 @@ if ($method === 'POST') {
         sendJsonResponse(false, 'Title and description are required', null, 400);
     }
 
-    if (!$pdo) sendJsonResponse(true, 'Achievement added (simulated)', ['id' => rand(10, 999)]);
+    if (!$pdo) {
+        sendJsonResponse(true, $id ? 'Achievement updated (simulated)' : 'Achievement added (simulated)', ['id' => $id ?: rand(10, 999)]);
+    }
 
     try {
-        $stmt = $pdo->prepare("INSERT INTO achievements (title, description, achievement_date, category, image_url, proof_link, is_featured, display_order) VALUES (:title, :description, :achievement_date, :category, :image_url, :proof_link, :is_featured, :display_order)");
-        $stmt->execute([
-            ':title' => $title,
-            ':description' => $description,
-            ':achievement_date' => $achievement_date,
-            ':category' => $category,
-            ':image_url' => $image_url,
-            ':proof_link' => $proof_link,
-            ':is_featured' => $is_featured,
-            ':display_order' => $display_order
-        ]);
-        sendJsonResponse(true, 'Achievement created successfully', ['id' => $pdo->lastInsertId()]);
+        if ($id > 0) {
+            $stmt = $pdo->prepare("UPDATE achievements SET title = :title, description = :description, achievement_date = :achievement_date, category = :category, image_url = :image_url, proof_link = :proof_link, is_featured = :is_featured, display_order = :display_order WHERE id = :id");
+            $stmt->execute([
+                ':id' => $id,
+                ':title' => $title,
+                ':description' => $description,
+                ':achievement_date' => $achievement_date,
+                ':category' => $category,
+                ':image_url' => $image_url,
+                ':proof_link' => $proof_link,
+                ':is_featured' => $is_featured,
+                ':display_order' => $display_order
+            ]);
+            sendJsonResponse(true, 'Achievement updated successfully', ['id' => $id]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO achievements (title, description, achievement_date, category, image_url, proof_link, is_featured, display_order) VALUES (:title, :description, :achievement_date, :category, :image_url, :proof_link, :is_featured, :display_order)");
+            $stmt->execute([
+                ':title' => $title,
+                ':description' => $description,
+                ':achievement_date' => $achievement_date,
+                ':category' => $category,
+                ':image_url' => $image_url,
+                ':proof_link' => $proof_link,
+                ':is_featured' => $is_featured,
+                ':display_order' => $display_order
+            ]);
+            sendJsonResponse(true, 'Achievement created successfully', ['id' => $pdo->lastInsertId()]);
+        }
     } catch (PDOException $e) {
         sendJsonResponse(false, 'Database error: ' . $e->getMessage(), null, 500);
     }

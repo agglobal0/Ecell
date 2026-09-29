@@ -39,7 +39,7 @@ export default function AdminDashboard() {
   const [appStatusFilter, setAppStatusFilter] = useState('All');
   const [selectedApp, setSelectedApp] = useState(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
-
+  const [uploadingAchieveImage, setUploadingAchieveImage] = useState(false);
 
   // Event form
   const [eventForm, setEventForm] = useState({
@@ -88,12 +88,15 @@ export default function AdminDashboard() {
 
   // Achievement form
   const [achieveForm, setAchieveForm] = useState({
+    id: null,
     title: '',
     description: '',
     achievement_date: '',
     category: 'Competition',
+    image_url: '',
     proof_link: '',
-    is_featured: 1
+    is_featured: 1,
+    display_order: 1
   });
 
   // Resource form
@@ -331,6 +334,55 @@ export default function AdminDashboard() {
     }
   };
 
+  // Achievement Actions & Image Upload
+  const handleAchieveFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file (JPG, PNG, WEBP, GIF)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size exceeds 5MB limit');
+      return;
+    }
+
+    setUploadingAchieveImage(true);
+    try {
+      const res = await api.uploadImage(file);
+      if (res.success && res.url) {
+        setAchieveForm(prev => ({ ...prev, image_url: res.url }));
+        showToast('Achievement banner image uploaded!');
+      } else {
+        showToast(res.message || 'Failed to upload image');
+      }
+    } catch {
+      showToast('Error uploading image');
+    } finally {
+      setUploadingAchieveImage(false);
+    }
+  };
+
+  const handleSaveAchievement = async (e) => {
+    e.preventDefault();
+    const res = await api.saveAchievement(achieveForm);
+    if (res.success) {
+      showToast(achieveForm.id ? 'Achievement updated successfully' : 'Achievement added successfully');
+      setModalType(null);
+      loadAllData();
+    }
+  };
+
+  const handleDeleteAchievement = async (id) => {
+    if (window.confirm('Delete this achievement record?')) {
+      await api.deleteAchievement(id);
+      showToast('Achievement record deleted');
+      loadAllData();
+    }
+  };
+
   // Settings Actions
   const handleSaveSettings = async (e) => {
     e.preventDefault();
@@ -344,9 +396,9 @@ export default function AdminDashboard() {
     { id: 'applications', label: 'Join Requests', icon: UserCheck, badge: applications.filter(a => a.status === 'pending').length },
     { id: 'events', label: 'Events', icon: Calendar, badge: events.length },
     { id: 'registrations', label: 'Registrations', icon: Users, badge: registrations.length },
+    { id: 'achievements', label: 'Achievements', icon: Trophy, badge: achievements.length },
     { id: 'team', label: 'Team', icon: Users, badge: team.length },
     { id: 'gallery', label: 'Gallery', icon: ImageIcon, badge: gallery.length },
-    { id: 'achievements', label: 'Achievements', icon: Trophy },
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'messages', label: 'Messages', icon: MessageSquare, badge: messages.filter(m => !m.is_read).length },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -979,6 +1031,135 @@ export default function AdminDashboard() {
         )}
 
         {/* ==================================================== */}
+        {/* TAB: ACHIEVEMENTS */}
+        {/* ==================================================== */}
+        {activeTab === 'achievements' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900">Milestones & Achievements</h3>
+                <span className="text-xs text-slate-500">Total: {achievements.length} awards, podiums & incubation laurels</span>
+              </div>
+              <button
+                onClick={() => {
+                  setAchieveForm({
+                    id: null,
+                    title: '',
+                    description: '',
+                    achievement_date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+                    category: 'Competition',
+                    image_url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1000&q=80',
+                    proof_link: '',
+                    is_featured: 1,
+                    display_order: achievements.length + 1
+                  });
+                  setModalType('achievement');
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Achievement</span>
+              </button>
+            </div>
+
+            <div className="ui-card bg-white border border-slate-200 overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-400 uppercase font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="p-4">Media / Image</th>
+                    <th className="p-4">Title & Details</th>
+                    <th className="p-4">Category</th>
+                    <th className="p-4">Date / Timeline</th>
+                    <th className="p-4">Proof Link</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {achievements.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="p-4 w-20">
+                        <div className="w-16 h-12 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-2xs flex items-center justify-center flex-shrink-0">
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt={item.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1000&q=80';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-amber-50 text-amber-600 flex items-center justify-center">
+                              <Trophy className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 max-w-sm">
+                        <div className="font-bold text-slate-900 leading-snug">{item.title}</div>
+                        <div className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{item.description}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                          {item.category || 'Competition'}
+                        </span>
+                      </td>
+                      <td className="p-4 font-mono text-slate-700 whitespace-nowrap">
+                        {item.achievement_date}
+                      </td>
+                      <td className="p-4">
+                        {item.proof_link ? (
+                          <a
+                            href={item.proof_link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            <span>Verify</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">No link</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => {
+                            setAchieveForm({
+                              id: item.id,
+                              title: item.title,
+                              description: item.description,
+                              achievement_date: item.achievement_date || '',
+                              category: item.category || 'Competition',
+                              image_url: item.image_url || '',
+                              proof_link: item.proof_link || '',
+                              is_featured: item.is_featured !== undefined ? item.is_featured : 1,
+                              display_order: item.display_order || 1
+                            });
+                            setModalType('achievement');
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                          title="Edit Achievement & Image"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAchievement(item.id)}
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
+                          title="Delete Achievement"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
         {/* TAB: TEAM */}
         {/* ==================================================== */}
         {activeTab === 'team' && (
@@ -1333,6 +1514,231 @@ export default function AdminDashboard() {
                   className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm flex items-center gap-1.5"
                 >
                   <span>{eventForm.id ? 'Update Event' : 'Publish Event'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Achievement Create / Edit Modal */}
+      {modalType === 'achievement' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-display font-bold text-lg text-slate-900">
+                  {achieveForm.id ? 'Edit Milestone / Achievement' : 'Add Milestone / Achievement'}
+                </h3>
+                <p className="text-xs text-slate-400">Add competition awards, incubation laurels, or press milestones</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalType(null)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAchievement} className="space-y-4 text-xs">
+              
+              {/* Image Upload Zone */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Trophy className="w-4 h-4 text-amber-500" />
+                    <span>Achievement Image / Award Banner</span>
+                  </label>
+                  {achieveForm.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => setAchieveForm({ ...achieveForm, image_url: '' })}
+                      className="text-[11px] font-bold text-rose-600 hover:underline"
+                    >
+                      Clear Image
+                    </button>
+                  )}
+                </div>
+
+                {/* Live Image Preview */}
+                {achieveForm.image_url ? (
+                  <div className="relative h-44 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner group">
+                    <img
+                      src={achieveForm.image_url}
+                      alt="Achievement Preview"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1000&q=80';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/90 text-slate-900 backdrop-blur-xs">
+                        Banner Preview
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-500 text-slate-900 shadow-xs">
+                        {achieveForm.category || 'Competition'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-28 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-4 bg-white/50 text-slate-400 gap-1.5">
+                    <ImagePlus className="w-7 h-7 text-slate-300" />
+                    <span className="text-xs font-semibold">No achievement image uploaded</span>
+                    <span className="text-[10px] text-slate-400">Upload a certificate/trophy image or pick a preset</span>
+                  </div>
+                )}
+
+                {/* Upload Action Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-1 block">Upload from Device:</label>
+                    <label className={`w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-2xs ${uploadingAchieveImage ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                      {uploadingAchieveImage ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                          <span>Uploading Image...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 text-amber-600" />
+                          <span>Choose Image (JPG/PNG)</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        disabled={uploadingAchieveImage}
+                        onChange={handleAchieveFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-1 block">Or Direct Image URL:</label>
+                    <div className="relative">
+                      <Link2 className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                      <input
+                        type="url"
+                        placeholder="https://images.unsplash.com/..."
+                        value={achieveForm.image_url}
+                        onChange={(e) => setAchieveForm({ ...achieveForm, image_url: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    Quick Preset Cover Templates:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: '🏆 National Challenge Trophy', url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1000&q=80' },
+                      { label: '💡 Smart Ideathon Podium', url: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=1000&q=80' },
+                      { label: '🚀 Startup Incubation', url: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=1000&q=80' },
+                      { label: '🏅 Best Cell Citation', url: 'https://images.unsplash.com/photo-1567427017947-545c5f8d16ad?auto=format&fit=crop&w=1000&q=80' },
+                      { label: '💰 Innovation Grant Cheque', url: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=1000&q=80' }
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setAchieveForm({ ...achieveForm, image_url: preset.url })}
+                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 border border-slate-200 text-[10px] font-semibold text-slate-600 transition-colors shadow-2xs"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold mb-1 block">Achievement / Honor Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 1st Place - National Smart India Ideathon 2025"
+                    value={achieveForm.title}
+                    onChange={(e) => setAchieveForm({ ...achieveForm, title: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Category *</label>
+                  <select
+                    value={achieveForm.category}
+                    onChange={(e) => setAchieveForm({ ...achieveForm, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800"
+                  >
+                    <option value="Competition">Competition</option>
+                    <option value="Student Innovation">Student Innovation</option>
+                    <option value="Incubation Milestone">Incubation Milestone</option>
+                    <option value="Institutional Award">Institutional Award</option>
+                    <option value="Leadership Citation">Leadership Citation</option>
+                    <option value="Grant & Funding">Grant & Funding</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Date / Timeline *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. December 2025"
+                    value={achieveForm.achievement_date}
+                    onChange={(e) => setAchieveForm({ ...achieveForm, achievement_date: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Proof / Certificate / Press URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://davjalandhar.ac.in/..."
+                    value={achieveForm.proof_link}
+                    onChange={(e) => setAchieveForm({ ...achieveForm, proof_link: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-600 font-bold mb-1 block">Description / Details *</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Describe the milestone, organizing body, student team participants, and impact..."
+                  value={achieveForm.description}
+                  onChange={(e) => setAchieveForm({ ...achieveForm, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setModalType(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingAchieveImage}
+                  className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm flex items-center gap-1.5"
+                >
+                  <span>{achieveForm.id ? 'Update Achievement' : 'Save Achievement'}</span>
                 </button>
               </div>
             </form>
