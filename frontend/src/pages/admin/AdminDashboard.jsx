@@ -40,9 +40,13 @@ export default function AdminDashboard() {
   const [selectedApp, setSelectedApp] = useState(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingAchieveImage, setUploadingAchieveImage] = useState(false);
+  const [uploadingTeamPhoto, setUploadingTeamPhoto] = useState(false);
+  const [teamSearch, setTeamSearch] = useState('');
+  const [teamCategoryFilter, setTeamCategoryFilter] = useState('All');
 
   // Event form
   const [eventForm, setEventForm] = useState({
+    id: null,
     title: '',
     slug: '',
     category: 'Workshop',
@@ -63,6 +67,7 @@ export default function AdminDashboard() {
 
   // Team form
   const [teamForm, setTeamForm] = useState({
+    id: null,
     name: '',
     designation: '',
     department: '',
@@ -303,17 +308,25 @@ export default function AdminDashboard() {
   // Team Actions
   const handleSaveTeam = async (e) => {
     e.preventDefault();
-    await api.saveTeamMember(teamForm);
-    showToast('Team member saved');
-    setModalType(null);
-    loadAllData();
+    const res = await api.saveTeamMember(teamForm);
+    if (res.success) {
+      showToast(teamForm.id ? 'Team member updated successfully' : 'Team member added successfully');
+      setModalType(null);
+      loadAllData();
+    } else {
+      showToast(res.message || 'Failed to save member');
+    }
   };
 
-  const handleDeleteTeam = async (id) => {
-    if (window.confirm('Delete team member?')) {
-      await api.deleteTeamMember(id);
-      showToast('Member deleted');
-      loadAllData();
+  const handleDeleteTeam = async (id, name = 'this member') => {
+    if (window.confirm(`Are you sure you want to delete ${name} from the team roster?`)) {
+      const res = await api.deleteTeamMember(id);
+      if (res.success) {
+        showToast('Team member deleted successfully');
+        loadAllData();
+      } else {
+        showToast(res.message || 'Failed to delete member');
+      }
     }
   };
 
@@ -358,14 +371,30 @@ export default function AdminDashboard() {
   const handleTeamFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file (JPG, PNG, WEBP, GIF)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size exceeds 5MB limit');
+      return;
+    }
+
+    setUploadingTeamPhoto(true);
     try {
       const res = await api.uploadImage(file);
       if (res.success && res.url) {
         setTeamForm(prev => ({ ...prev, photo_url: res.url }));
-        showToast('Team member photo uploaded!');
+        showToast('Team member photo uploaded successfully!');
+      } else {
+        showToast(res.message || 'Failed to upload photo');
       }
     } catch {
-      showToast('Upload error');
+      showToast('Error uploading photo');
+    } finally {
+      setUploadingTeamPhoto(false);
     }
   };
 
@@ -1231,56 +1260,187 @@ export default function AdminDashboard() {
         {/* ==================================================== */}
         {activeTab === 'team' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-500 font-semibold">Total: {team.length} members</span>
-              <button
-                onClick={() => {
-                  setTeamForm({
-                    name: '',
-                    designation: '',
-                    department: '',
-                    category: 'Core Team',
-                    is_leadership: 0,
-                    bio: '',
-                    photo_url: '',
-                    linkedin_url: '',
-                    instagram_url: '',
-                    email: '',
-                    display_order: team.length + 1
-                  });
-                  setModalType('team');
-                }}
-                className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Team Member</span>
-              </button>
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    placeholder="Search member by name, role, dept..."
+                    value={teamSearch}
+                    onChange={(e) => setTeamSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs shadow-2xs"
+                  />
+                </div>
+
+                <select
+                  value={teamCategoryFilter}
+                  onChange={(e) => setTeamCategoryFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs shadow-2xs font-semibold"
+                >
+                  <option value="All">All Categories</option>
+                  <option value="Core Team">Core Team</option>
+                  <option value="Faculty / Mentors">Faculty / Mentors</option>
+                  <option value="Event Team">Event Team</option>
+                  <option value="Marketing & PR">Marketing & PR</option>
+                  <option value="Technical Team">Technical Team</option>
+                  <option value="Creative Team">Creative Team</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                <span className="text-xs text-slate-500 font-semibold">
+                  Showing {
+                    team.filter(m => {
+                      const matchSearch = (m.name || '').toLowerCase().includes(teamSearch.toLowerCase()) ||
+                                          (m.designation || '').toLowerCase().includes(teamSearch.toLowerCase()) ||
+                                          (m.department || '').toLowerCase().includes(teamSearch.toLowerCase());
+                      const matchCategory = teamCategoryFilter === 'All' || m.category === teamCategoryFilter;
+                      return matchSearch && matchCategory;
+                    }).length
+                  } of {team.length} members
+                </span>
+
+                <button
+                  onClick={() => {
+                    setTeamForm({
+                      id: null,
+                      name: '',
+                      designation: '',
+                      department: '',
+                      category: 'Core Team',
+                      is_leadership: 0,
+                      bio: '',
+                      photo_url: '',
+                      linkedin_url: '',
+                      instagram_url: '',
+                      email: '',
+                      display_order: team.length + 1
+                    });
+                    setModalType('team');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Team Member</span>
+                </button>
+              </div>
             </div>
 
+            {/* Team Members Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {team.map((m) => (
-                <div key={m.id} className="ui-card p-4 bg-white border border-slate-200 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={m.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}`}
-                      alt={m.name}
-                      className="w-12 h-12 rounded-xl object-cover"
-                    />
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">{m.name}</h4>
-                      <p className="text-xs text-primary-600 font-semibold">{m.designation}</p>
+              {team
+                .filter(m => {
+                  const matchSearch = (m.name || '').toLowerCase().includes(teamSearch.toLowerCase()) ||
+                                      (m.designation || '').toLowerCase().includes(teamSearch.toLowerCase()) ||
+                                      (m.department || '').toLowerCase().includes(teamSearch.toLowerCase());
+                  const matchCategory = teamCategoryFilter === 'All' || m.category === teamCategoryFilter;
+                  return matchSearch && matchCategory;
+                })
+                .map((m) => (
+                  <div key={m.id} className="ui-card p-5 bg-white border border-slate-200 rounded-2xl flex flex-col justify-between gap-4 shadow-2xs hover:border-blue-300 transition-all group">
+                    <div className="flex items-start gap-3.5">
+                      <div className="relative shrink-0">
+                        <img
+                          src={m.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}`}
+                          alt={m.name}
+                          className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shadow-2xs"
+                          onError={(e) => {
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}`;
+                          }}
+                        />
+                        {Boolean(m.is_leadership) && (
+                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-400 text-slate-900 flex items-center justify-center text-[10px] font-black shadow-xs" title="Executive Leadership">
+                            ★
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase bg-blue-50 text-blue-700 border border-blue-100">
+                            {m.category || 'Core Team'}
+                          </span>
+                          {Boolean(m.is_leadership) && (
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                              Leadership
+                            </span>
+                          )}
+                        </div>
+
+                        <h4 className="font-display font-bold text-slate-900 text-sm mt-1 truncate">{m.name}</h4>
+                        <p className="text-xs text-blue-600 font-bold truncate">{m.designation}</p>
+                        {m.department && <p className="text-[11px] text-slate-400 truncate mt-0.5">{m.department}</p>}
+                      </div>
+                    </div>
+
+                    {m.bio && (
+                      <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-xl">
+                        {m.bio}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                      {/* Social Links */}
+                      <div className="flex items-center gap-2">
+                        {m.email && (
+                          <a href={`mailto:${m.email}`} className="text-slate-400 hover:text-blue-600" title={m.email}>
+                            <Mail className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        {m.linkedin_url && (
+                          <a href={m.linkedin_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-600" title="LinkedIn Profile">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setTeamForm({
+                              id: m.id,
+                              name: m.name || '',
+                              designation: m.designation || '',
+                              department: m.department || '',
+                              category: m.category || 'Core Team',
+                              is_leadership: m.is_leadership ? 1 : 0,
+                              bio: m.bio || '',
+                              photo_url: m.photo_url || '',
+                              linkedin_url: m.linkedin_url || '',
+                              instagram_url: m.instagram_url || '',
+                              email: m.email || '',
+                              display_order: m.display_order || 1
+                            });
+                            setModalType('team');
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 transition-colors"
+                          title="Edit Details & Photo"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteTeam(m.id, m.name)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                          title="Delete Member"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => handleDeleteTeam(m.id)}
-                    className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                ))}
             </div>
+
+            {team.length === 0 && (
+              <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
+                <Users className="w-8 h-8 mx-auto text-slate-300" />
+                <p className="text-xs font-semibold">No team members added yet.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -2042,75 +2202,281 @@ export default function AdminDashboard() {
 
       {modalType === 'team' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
-            <h3 className="font-display font-bold text-lg text-slate-900">Add Team Member</h3>
-            <form onSubmit={handleSaveTeam} className="space-y-3 text-xs">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <label className="text-slate-500 font-bold mb-1 block">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Dr. Rajesh Sharma"
-                  value={teamForm.name}
-                  onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold"
-                />
+                <h3 className="font-display font-bold text-lg text-slate-900">
+                  {teamForm.id ? 'Edit Team Member Details & Photo' : 'Add New Team Member'}
+                </h3>
+                <p className="text-xs text-slate-400">Update executive info, designation, department, social links and headshot photo</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalType(null)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTeam} className="space-y-4 text-xs">
+              
+              {/* Photo Upload & Preview Section */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-blue-600" />
+                    <span>Member Photo / Avatar</span>
+                  </label>
+                  {teamForm.photo_url && (
+                    <button
+                      type="button"
+                      onClick={() => setTeamForm({ ...teamForm, photo_url: '' })}
+                      className="text-[11px] font-bold text-rose-600 hover:underline"
+                    >
+                      Clear Photo
+                    </button>
+                  )}
+                </div>
+
+                {/* Live Avatar Preview */}
+                <div className="flex items-center gap-4 p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                  <div className="relative shrink-0">
+                    <img
+                      src={teamForm.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(teamForm.name || 'Member')}&background=0284c7&color=fff`}
+                      alt="Avatar Preview"
+                      className="w-16 h-16 rounded-2xl object-cover border-2 border-blue-500/20 shadow-xs"
+                      onError={(e) => {
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(teamForm.name || 'Member')}`;
+                      }}
+                    />
+                    {Boolean(teamForm.is_leadership) && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-slate-900 flex items-center justify-center text-[9px] font-black shadow-xs">
+                        ★
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-slate-900 text-sm truncate">{teamForm.name || 'Team Member Name'}</h4>
+                    <p className="text-xs text-blue-600 font-semibold truncate">{teamForm.designation || 'Designation / Role'}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{teamForm.department || 'Department'} • {teamForm.category}</p>
+                  </div>
+                </div>
+
+                {/* Upload Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-1 block">Upload from Device:</label>
+                    <label className={`w-full py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-2xs ${uploadingTeamPhoto ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                      {uploadingTeamPhoto ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <span>Uploading Photo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 text-blue-600" />
+                          <span>Choose Headshot (JPG/PNG)</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        disabled={uploadingTeamPhoto}
+                        onChange={handleTeamFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-1 block">Or Direct Photo URL:</label>
+                    <div className="relative">
+                      <Link2 className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                      <input
+                        type="url"
+                        placeholder="https://images.unsplash.com/..."
+                        value={teamForm.photo_url}
+                        onChange={(e) => setTeamForm({ ...teamForm, photo_url: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    Quick Preset Avatars:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: '👔 Executive Head', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80' },
+                      { label: '👨‍💼 Co-President', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80' },
+                      { label: '👩‍💻 Tech Lead', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=600&q=80' },
+                      { label: '🎯 Operations Lead', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80' },
+                      { label: '📈 Marketing Lead', url: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=600&q=80' },
+                      { label: '🎓 Faculty Advisor', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80' }
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setTeamForm({ ...teamForm, photo_url: preset.url })}
+                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 text-[10px] font-semibold text-slate-600 transition-colors shadow-2xs"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="text-slate-500 font-bold mb-1 block">Designation / Role *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. President / Faculty Coordinator"
-                  value={teamForm.designation}
-                  onChange={(e) => setTeamForm({ ...teamForm, designation: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-500 font-bold mb-1 block">Department / Major</label>
-                <input
-                  type="text"
-                  placeholder="e.g. B.Com Professional"
-                  value={teamForm.department}
-                  onChange={(e) => setTeamForm({ ...teamForm, department: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-500 font-bold mb-1 block">Photo URL / Upload</label>
-                <div className="space-y-2">
+              {/* Core Information Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold mb-1 block">Full Name *</label>
                   <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/..."
-                    value={teamForm.photo_url}
-                    onChange={(e) => setTeamForm({ ...teamForm, photo_url: e.target.value })}
+                    type="text"
+                    required
+                    placeholder="e.g. Aryaman Batra"
+                    value={teamForm.name}
+                    onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Category *</label>
+                  <select
+                    value={teamForm.category}
+                    onChange={(e) => setTeamForm({ ...teamForm, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-800"
+                  >
+                    <option value="Core Team">Core Team</option>
+                    <option value="Faculty / Mentors">Faculty / Mentors</option>
+                    <option value="Event Team">Event Team</option>
+                    <option value="Marketing & PR">Marketing & PR</option>
+                    <option value="Technical Team">Technical Team</option>
+                    <option value="Creative Team">Creative Team</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Designation / Role *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. President / Head of Technology"
+                    value={teamForm.designation}
+                    onChange={(e) => setTeamForm({ ...teamForm, designation: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Department / Course</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. B.Com Professional (3rd Year)"
+                    value={teamForm.department}
+                    onChange={(e) => setTeamForm({ ...teamForm, department: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
                   />
-                  <label className="w-full py-2 px-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold flex items-center justify-center gap-1.5 cursor-pointer text-xs">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Photo from Device</span>
-                    <input type="file" accept="image/*" onChange={handleTeamFileUpload} className="hidden" />
-                  </label>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Contact Email</label>
+                  <input
+                    type="email"
+                    placeholder="member@davjalandhar.ac.in"
+                    value={teamForm.email}
+                    onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Display Order</label>
+                  <input
+                    type="number"
+                    placeholder="1"
+                    value={teamForm.display_order || 1}
+                    onChange={(e) => setTeamForm({ ...teamForm, display_order: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">LinkedIn Profile URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://linkedin.com/in/username"
+                    value={teamForm.linkedin_url}
+                    onChange={(e) => setTeamForm({ ...teamForm, linkedin_url: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold mb-1 block">Instagram Profile URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://instagram.com/username"
+                    value={teamForm.instagram_url}
+                    onChange={(e) => setTeamForm({ ...teamForm, instagram_url: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                  />
+                </div>
+              </div>
+
+              {/* Leadership Toggle Checkbox */}
+              <div className="p-3 bg-amber-50/70 border border-amber-200/70 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-slate-800 block text-xs">Executive Leadership Board</span>
+                  <span className="text-[10px] text-slate-500">Feature this member with a leadership badge on the public Team page</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(teamForm.is_leadership)}
+                    onChange={(e) => setTeamForm({ ...teamForm, is_leadership: e.target.checked ? 1 : 0 })}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                  />
+                </label>
+              </div>
+
+              <div>
+                <label className="text-slate-600 font-bold mb-1 block">Short Bio / Quote</label>
+                <textarea
+                  rows={2}
+                  placeholder="Brief 1-2 sentence introduction or background..."
+                  value={teamForm.bio}
+                  onChange={(e) => setTeamForm({ ...teamForm, bio: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200"
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setModalType(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-blue-600 text-white font-bold"
+                  disabled={uploadingTeamPhoto}
+                  className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm flex items-center gap-1.5"
                 >
-                  Save Member
+                  <span>{teamForm.id ? 'Update Team Member' : 'Add Team Member'}</span>
                 </button>
               </div>
             </form>
